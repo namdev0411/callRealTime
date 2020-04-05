@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRtcDemo</title>
+    <script src="./jquery.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@0.3.20/dist/peer.min.js"></script>
+    <script src="./socket.io.js"></script>
+    <script src="./bootstrap.min.js" charset="utf-8"></script>
+    <link rel="stylesheet" href="./bootstrap.min.css">
+    <link rel="stylesheet" href="./css.css">
+</head>
+<body>
+  <h1 id="id"></h1>
+  <div class="row mt-3">
+    <div class="col-md-8">
+      <video id="customerVideo" controls width="800" autoplay ></video>
+    </div>
+    <div class="col-md-4 pl-5 ">
+      <div class="row">
+        <video id="localVideo" autoplay controls width="250"></video>
+      </div>
+      <div class="row mt-5">
+        <ul id="list"></ul>
+      </div>
+    </div>
+  </div>
+    <input id="callToId" class="form-control input-sm col-3 d-inline"  type="text" placeholder="Call to id">
+    <button class="btn btn-primary" id="btn-call">Call</button>
+    <script>
+        const onStream = ()=>{
+            const config = {audio: false, video: true};
+            return navigator.mediaDevices.getUserMedia(config);
+        }
+        const onVideo = (id,stream)=>{
+            const video = document.getElementById(id);
+            video.srcObject = stream;
+            video.play();
+        }
+        //socketIo
+        const socket = io('http://localhost:8888');
+        let list = $('#list');
+        //ham render ra list
+        const renderList = (users)=>{
+          if(userId!=null&&users){
+            let index = users.findIndex(user => user.socketId === socket.id);
+            users.splice(index,1);
+          }
+          let item = users.map(user=>`<li>${user.id}</li>`);
+          list.html(item);
+        }
+        // cap lay du lieu khi connect
+        socket.on('users', renderList);
+        //update khi co nguoi disconnect
+        socket.on('disconnect', renderList);
+        let userId = null;
+        //peer
+        const peer = new Peer({key: 'lwjd5qra8257b9'});
+         peer.on('open',(id) =>{
+          $("#id").text('My Id: '+id);
+            userId = id;
+            socket.emit('loginId',userId);
+        });
+        //call
+        $('#btn-call').click(()=>{
+            console.log('clicked');
+            const id = $('#callToId').val();
+            onStream()
+            .then(stream => {
+                onVideo('localVideo', stream); // mo video cua minh len
+                var call = peer.call(id,stream); // thuc hien lenh goi va truyen video di
+                call.on('stream',customerVideo=>onVideo('customerVideo',customerVideo)); // phat video nhan duoc
+            });
+        });
+        $('#list').on('click','li',(event)=>{
+            console.log('clicked');
+            const id = event.target.innerHTML;
+            onStream()
+            .then(stream => {
+                onVideo('localVideo', stream); // mo video cua minh len
+                var call = peer.call(id,stream); // thuc hien lenh goi va truyen video di
+                call.on('stream',customerVideo=>onVideo('customerVideo',customerVideo)); // phat video nhan duoc
+            });
+        });
+        //answer
+        peer.on('call', (call)=>{
+                $('#btn-call').text('Answer');
+                  onStream()
+                  .then(stream => {
+                      onVideo('localVideo', stream); // mo video cua minh len
+                      call.answer(stream); // truyen lenh nhan va truyen video di
+                      call.on('stream',customerVideo=>onVideo('customerVideo',customerVideo)); // phat video nhan duoc
+              });
+        });
+    </script>
+</body>
+</html>
